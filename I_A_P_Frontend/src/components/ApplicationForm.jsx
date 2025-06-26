@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { supabase } from '../services/supabase';
+import { submitApplication } from '../services/api';
 
 export default function ApplicationForm() {
   const [formData, setFormData] = useState({
@@ -23,61 +24,135 @@ export default function ApplicationForm() {
     }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setMessage('');
+//   const handleSubmit = async (e) => {
+//     e.preventDefault();
+//     setLoading(true);
+//     setMessage('');
 
-    try {
-      if (!formData.resumeFile) {
-        setMessage('❌ Please upload a resume.');
-        setLoading(false);
-        return;
-      }
+//     try {
+//       if (!formData.resumeFile) {
+//         setMessage('❌ Please upload a resume.');
+//         setLoading(false);
+//         return;
+//       }
 
-      const fileName = `${Date.now()}-${formData.resumeFile.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from('resumes')
-        .upload(fileName, formData.resumeFile);
+//       const fileName = `${Date.now()}-${formData.resumeFile.name}`;
+//       const { error: uploadError } = await supabase.storage
+//         .from('resumes')
+//         .upload(fileName, formData.resumeFile);
 
-      if (uploadError) throw uploadError;
+//       if (uploadError) throw uploadError;
 
-      const { data } = supabase.storage
-        .from('resumes')
-        .getPublicUrl(fileName);
+//       const { data } = supabase.storage
+//         .from('resumes')
+//         .getPublicUrl(fileName);
 
-      const resumeUrl = data.publicUrl;
+//       const resumeUrl = data.publicUrl;
 
-      // Save metadata in a Supabase table (e.g., applications)
-      const { error: insertError } = await supabase
-        .from('applications')
-        .insert([
-          {
-            name: formData.name,
-            email: formData.email,
-            phone: formData.phone,
-            position: formData.position,
-            resume_url: resumeUrl,
-          },
-        ]);
+//       //THIS IS FOR DIRECT SUPABASE CONN. WITH FRONTEND
 
-      if (insertError) throw insertError;
+//       // Save metadata in a Supabase table (e.g., applications)
+//       // const { error: insertError } = await supabase
+//       //   .from('applications')
+//       //   .insert([
+//       //     {
+//       //       name: formData.name,
+//       //       email: formData.email,
+//       //       phone: formData.phone,
+//       //       position: formData.position,
+//       //       resume_url: resumeUrl,
+//       //     },
+//       //   ]);
 
-      setMessage('✅ Application submitted successfully!');
-      setFormData({
-        name: '',
-        email: '',
-        phone: '',
-        position: '',
-        resumeFile: null,
-      });
-    } catch (err) {
-      console.error(err);
-      setMessage('❌ Submission failed. Try again.');
-    } finally {
+//       // if (insertError) throw insertError;
+
+
+//       await submitApplication({
+//   name: formData.name,
+//   email: formData.email,
+//   phone: formData.phone,
+//   position: formData.position,
+//   resumeUrl: resumeUrl,
+// });
+
+//       setMessage('✅ Application submitted successfully!');
+//       setFormData({
+//         name: '',
+//         email: '',
+//         phone: '',
+//         position: '',
+//         resumeFile: null,
+//       });
+//     } catch (err) {
+//       console.error(err);
+//       setMessage('❌ Submission failed. Try again.');
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  setMessage('');
+
+  try {
+    if (!formData.resumeFile) {
+      setMessage('❌ Please upload a resume.');
       setLoading(false);
+      return;
     }
-  };
+
+    const fileName = `${Date.now()}-${formData.resumeFile.name}`;
+    const { error: uploadError } = await supabase.storage
+      .from('resumes')
+      .upload(fileName, formData.resumeFile);
+
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage
+      .from('resumes')
+      .getPublicUrl(fileName);
+    const resumeUrl = data.publicUrl;
+
+    // ✅ Call backend Spring Boot API
+    await submitApplication({
+      name: formData.name,
+      email: formData.email,
+      phone: formData.phone,
+      position: formData.position,
+      resumeUrl: resumeUrl,
+    });
+
+    setMessage('✅ Application submitted successfully!');
+    setFormData({
+      name: '',
+      email: '',
+      phone: '',
+      position: '',
+      resumeFile: null,
+    });
+  } catch (err) {
+  console.error("Error:", err.response?.data);
+
+  if (
+  err.response &&                            // error ke andar response object hai kya?
+  err.response.data &&                       // uske andar data hai kya?
+  err.response.data.error &&                 // us data me error naam ka key hai kya?
+  err.response.data.error.includes('Application already submitted')  
+  // e JS ka built-in method hai, jo check karta hai:“Kya is string ke andar ye text hai?”
+)
+ {
+    setMessage('❌ You have already submitted an application with this email.');
+  } else {
+    setMessage('❌ Submission failed. Try again.');
+  }
+}
+
+ finally {
+    setLoading(false);
+  }
+};
 
   return (
     <form
